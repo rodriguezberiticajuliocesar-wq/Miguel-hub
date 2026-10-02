@@ -274,6 +274,7 @@ utils.HonenxWhite = utils.library:AddWindow("HonenxWhite | Main - " .. utils.gre
 	can_resize = true,
 })
 
+-- Anti-AFK con switch manual
 AntiAFKState = {Enabled = true}
 
 utils.connect(utils.playerData.Player.Idled, function()
@@ -304,7 +305,6 @@ local tabs = {
 for _, tab in pairs(tabs) do
 	tab.runtime = {}
 end
-
 -- ============================================
 -- MAIN TAB
 -- ============================================
@@ -459,7 +459,6 @@ tabs.main.TimeDropdown = tabs.main:AddDropdown("Change Time", function(selection
 end)
 tabs.main.TimeDropdown:Add("Night")
 tabs.main.TimeDropdown:Add("Day")
-
 -- ============================================
 -- KILLING TAB (mínimo para misiones de KOs)
 -- ============================================
@@ -779,6 +778,9 @@ tabs.fast.FastRebirthToggle = tabs.fast:AddSwitch("Fast Rebirth 🔄", function(
 end)
 
 tabs.fast:AddLabel("🔄 Auto farmea + rebirth automático")
+-- ============================================
+-- FAST REBIRTH V2
+-- ============================================
 
 tabs.fast:AddLabel("")
 tabs.fast:AddLabel("Fast Rebirth V2:")
@@ -1089,7 +1091,6 @@ tabs.fast.ChaosToggle = tabs.fast:AddSwitch("Fast Rebirth Chaos Overlords", func
 end)
 
 tabs.fast:AddLabel("Swift Samurai > Farm > Tribal Overlord > Rebirth")
-
 -- ============================================
 -- BOSS TAB
 -- ============================================
@@ -1267,9 +1268,216 @@ tabs.boss.evadeAttack = function(model, hitbox, root, humanoid, sequence, attack
 		if direction.Magnitude < 1 then direction = Vector3.new(hitbox.CFrame.LookVector.X, 0, hitbox.CFrame.LookVector.Z) end
 		if direction.Magnitude < 1 then direction = Vector3.new(0, 0, 1) end
 		safePosition = center - direction.Unit * tabs.boss.Data.PunchBehindDistance
-		root.CFrame
+		root.CFrame = CFrame.lookAt(safePosition, center)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		tabs.boss.StatusLabel.Text = "Status: Dodging Punch"
+		return "Punch"
+	end
+
+	if not string.find(attackKind, "stomp", 1, true) then return end
+	if humanoid.Health / math.max(humanoid.MaxHealth, 1) <= tabs.boss.Data.StompHealthThreshold then
+		tabs.boss.Data.DodgeStomps = true
+	end
+	if not tabs.boss.Data.DodgeStomps then return end
+
+	direction = Vector3.new(root.Position.X - attackCFrame.Position.X, 0, root.Position.Z - attackCFrame.Position.Z)
+	if direction.Magnitude < 1 then
+		direction = Vector3.new(-attackCFrame.LookVector.X, 0, -attackCFrame.LookVector.Z)
+	end
+	if direction.Magnitude < 1 then direction = Vector3.new(1, 0, 0) end
+	direction = direction.Unit
+	safePosition = attackCFrame.Position + direction * tabs.boss.Data.EvadeDistance + Vector3.new(0, 18, 0)
+	root.CFrame = CFrame.lookAt(safePosition, attackCFrame.Position)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	tabs.boss.StatusLabel.Text = "Status: Dodging Stomp"
+	return "Stomp"
+end
+
+tabs.boss.attack = function(model, health, maxHealth, hitbox, character, root, humanoid, punch, leftHand, rightHand, center, position, evadeMode)
+	character = utils.playerData.Player.Character
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid or humanoid.Health <= 0 then return end
+	evadeMode = tabs.boss.evadeAttack(model, hitbox, root, humanoid)
+	if evadeMode == "Stomp" then return end
+	punch = character:FindFirstChild("Punch") or utils.playerData.Backpack:FindFirstChild("Punch")
+	if punch and punch.Parent ~= character then humanoid:EquipTool(punch) end
+	leftHand = character:FindFirstChild("LeftHand")
+	rightHand = character:FindFirstChild("RightHand")
+	center = tabs.boss.getBossHeadPosition(model, hitbox)
+	if evadeMode ~= "Punch" then
+		position = center
+		root.CFrame = CFrame.lookAt(position, position + hitbox.CFrame.LookVector)
+	end
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	pcall(function()
+		if leftHand then
+			firetouchinterest(hitbox, leftHand, 0)
+			firetouchinterest(hitbox, leftHand, 1)
+		end
+		if rightHand then
+			firetouchinterest(hitbox, rightHand, 0)
+			firetouchinterest(hitbox, rightHand, 1)
+		end
+	end)
+
+	if os.clock() - tabs.boss.Data.LastPunch >= tabs.boss.Data.PunchInterval then
+		tabs.boss.Data.LastPunch = os.clock()
+		pcall(function()
+			utils.remotes.MuscleEvent:FireServer("punch", "leftHand")
+			utils.remotes.MuscleEvent:FireServer("punch", "rightHand")
+			if punch then punch:Activate() end
+		end)
+	end
+
+	tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+	tabs.boss.runtime.health = tabs.boss.getBossHealth(health)
+	tabs.boss.runtime.maxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+	tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(tabs.boss.runtime.health) .. " / " .. utils.formatNumber(tabs.boss.runtime.maxHealth)
+end
+
+tabs.boss.findChest = function(chest, prompt, part)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventChest")) do
+		if candidate:IsDescendantOf(services.Workspace) then chest = candidate break end
+	end
+	if not chest then chest = services.Workspace:FindFirstChild("BossChest", true) end
+	if not chest then
+		for _, candidate in ipairs(services.Workspace:GetDescendants()) do
+			if candidate:IsA("ProximityPrompt") and candidate.Name == "bossChestPrompt" then
+				chest = candidate.Parent
+				break
+			end
+		end
+	end
+	if not chest then return end
+	prompt = chest:FindFirstChild("bossChestPrompt", true)
+	part = prompt and prompt.Parent or (chest:IsA("Model") and (chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart", true))) or chest
+	if part and part:IsA("BasePart") then return chest, prompt, part end
+end
+
+tabs.boss.collectChest = function(generation, startedAt, chest, prompt, part, character, root)
+	tabs.boss.StatusLabel.Text = "Status: Waiting for Chest"
+	startedAt = os.clock()
+	repeat
+		chest, prompt, part = tabs.boss.findChest()
+		if chest and chest:GetAttribute("BossChestEmerging") ~= true then break end
+		task.wait(0.1)
+	until not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation or os.clock() - startedAt >= 12
+	if not chest or not part then return end
+
+	tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+	startedAt = os.clock()
+	repeat
+		character, root = tabs.boss.getAliveCharacter(generation, 2)
+		if character and root and chest.Parent and part.Parent then
+			tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+			pcall(function()
+				root.CFrame = CFrame.lookAt(part.Position + Vector3.new(0, 3, 4), part.Position)
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
+			task.wait(0.15)
+			if prompt and prompt.Parent and fireproximityprompt then
+				pcall(function() fireproximityprompt(prompt) end)
+			else
+				pcall(function()
+					services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+					task.wait(0.1)
+					services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+				end)
+			end
+		end
+		task.wait(0.25)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or utils.playerData.Player:GetAttribute("BossChestPending") == false
+		or not chest.Parent
+		or os.clock() - startedAt >= 12
+end
+
+tabs.boss.ContinueSwitch = tabs.boss:AddSwitch("Continue Farming after Boss Kill", function(state)
+	tabs.boss.Data.ContinueTraining = state
+end)
+tabs.boss.ContinueSwitch:Set(false)
+
+task.spawn(function(model, health, maxHealth, hitbox, currentHealth, currentMaxHealth, nextTime)
+	while utils.isCurrent() and true do
+		model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+		if model then
+			currentHealth = tabs.boss.getBossHealth(health)
+			currentMaxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+			tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+			tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(currentHealth) .. " / " .. utils.formatNumber(currentMaxHealth)
+			tabs.boss.NextBossLabel.Text = "Next Boss: Current boss active"
+		else
+			tabs.boss.BossLabel.Text = "Boss: None"
+			tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+			nextTime = services.Workspace:GetAttribute("BossSpawnNextTime")
+			tabs.boss.NextBossLabel.Text = typeof(nextTime) == "number"
+				and "Next Boss: " .. tabs.boss.formatCountdown(nextTime - services.Workspace:GetServerTimeNow())
+				or "Next Boss: N/A"
+		end
+		task.wait(0.25)
+	end
+end)
+
+tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
+	tabs.boss.Data.Running = state
+	tabs.boss.Data.Generation += 1
+	tabs.boss.runtime.generation = tabs.boss.Data.Generation
+	if not state then
+		tabs.boss.Data.Phase = "Waiting"
+		tabs.boss.StatusLabel.Text = "Status: Disabled"
+		return
+	end
+
+	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox, selected)
+		while utils.isCurrent() and tabs.boss.Data.Running and tabs.boss.Data.Generation == generation do
+			pcall(function()
+				model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+				selected = model and tabs.boss.shouldFarmBoss(model)
+				if model and not selected then
+					if wasFighting then
+						wasFighting = false
+					end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Skipping " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+				elseif model then
+					if not wasFighting then
+						wasFighting = true
+						tabs.boss.Data.Phase = "Fighting"
+						tabs.boss.Data.AttackSequence = nil
+						tabs.boss.Data.EvadeUntil = 0
+						tabs.boss.Data.DodgeStomps = false
+					end
+					if utils.playerData.Player.Character
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid")
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+						tabs.boss.StatusLabel.Text = "Status: Fighting"
+						tabs.boss.attack(model, health, maxHealth, hitbox)
+					else
+						tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+					end
+				elseif wasFighting then
+					wasFighting = false
+					tabs.boss.Data.Phase = "Collecting"
+					pcall(tabs.boss.collectChest, generation)
+					tabs.boss.BossLabel.Text = "Boss: None"
+					tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				else
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				end
+			end)
+			task.wait(model and selected and 0.03 or 0.25)
+		end
+	end, tabs.boss.runtime.generation)
+end)
 -- ============================================
--- TAB ESTIMATES
+-- ESTIMATES TAB
 -- ============================================
 
 tabs.estimates:AddLabel("📊 Gain Estimates")
@@ -1405,9 +1613,8 @@ end)
 tabs.estimates:AddLabel("")
 tabs.estimates:AddLabel("Nota: Los primeros 60s son de calibración")
 tabs.estimates:AddLabel("Después verás las proyecciones")
-
 -- ============================================
--- TAB QUESTS
+-- QUESTS TAB
 -- ============================================
 
 tabs.quests:AddLabel("📜 Auto Quests")
@@ -1560,7 +1767,6 @@ tabs.quests.Worker = function()
 							if cur >= amount then completed = true end
 							tabs.quests.ProgressLabel.Text = "Progreso: " .. cur .. " / " .. amount
 						else
-							-- No soportado, salir
 							completed = true
 						end
 
