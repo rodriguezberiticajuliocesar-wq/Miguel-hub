@@ -283,12 +283,17 @@ task.spawn(function()
 	end
 end)
 
+-- Anti-AFK con switch manual
+tabs_AntiAFK = {Enabled = true}
+
 utils.connect(utils.playerData.Player.Idled, function()
-	pcall(function()
-		services.VirtualUser:CaptureController()
-		services.VirtualUser:ClickButton2(Vector2.new(0, 0))
-		services.VirtualUser:ClickButton1(Vector2.new(0, 0))
-	end)
+	if tabs_AntiAFK.Enabled then
+		pcall(function()
+			services.VirtualUser:CaptureController()
+			services.VirtualUser:ClickButton2(Vector2.new(0, 0))
+			services.VirtualUser:ClickButton1(Vector2.new(0, 0))
+		end)
+	end
 end)
 
 utils.connect(utils.playerData.Player.CharacterAdded, function(character)
@@ -300,6 +305,8 @@ end)
 local tabs = {
 	main = utils.HonenxWhite:AddTab("Main"),
 	fast = utils.HonenxWhite:AddTab("⚡ Fast"),
+	boss = utils.HonenxWhite:AddTab("👹 Boss"),
+	estimates = utils.HonenxWhite:AddTab("📊 Estimates"),
 	info = utils.HonenxWhite:AddTab("Info")
 }
 
@@ -581,6 +588,10 @@ tabs.main:AddSwitch("Infinite Jump", function(bool)
 	end
 end)
 
+tabs.main:AddSwitch("Anti-AFK", function(bool)
+	tabs_AntiAFK.Enabled = bool
+end):Set(true)
+
 tabs.main.FortuneWheelData = {
 	Running = false,
 	Generation = 0,
@@ -625,7 +636,7 @@ tabs.main.TimeDropdown:Add("Day")
 -- TAB FAST
 -- ============================================
 
--- FAST REP - by cyanam1
+-- FAST REP
 tabs.fast:AddLabel("Fast Rep:")
 
 tabs.fast.FastRepData = {
@@ -650,7 +661,6 @@ tabs.fast.FastRepWorkerLoop = function()
     tabs.fast.FastRepData.WorkerActive = true
     
     while utils.isCurrent() and tabs.fast.FastRepData.Running do
-        -- Actualizar ping cada 0.5s
         if tick() - tabs.fast.FastRepData.LastPingCheck > 0.5 then
             pcall(function()
                 tabs.fast.FastRepData.CurrentPing = networkStats:GetValue()
@@ -673,7 +683,6 @@ tabs.fast.FastRepWorkerLoop = function()
             end
         end
         
-        -- Enviar reps (un lote por frame)
         local repsToSend = math.floor(tabs.fast.FastRepData.SendRate / 60)
         if repsToSend < 1 then repsToSend = 1 end
         if repsToSend > 12 then
@@ -686,7 +695,6 @@ tabs.fast.FastRepWorkerLoop = function()
             end)
         end
         
-        -- Actualizar status
         tabs.fast.FastRepStatus.Text = "Status: " .. tabs.fast.FastRepData.SendRate 
             .. " reps/s | " .. math.floor(tabs.fast.FastRepData.CurrentPing) .. " ms"
         tabs.fast.FastRepStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
@@ -727,7 +735,7 @@ end)
 
 tabs.fast:AddLabel("400-1500 reps/s | Ping auto-ajustado")
 
--- 🔄 FAST REBIRTH - by cyanam1
+-- FAST REBIRTH V1
 tabs.fast:AddLabel("🔄 Fast Rebirth:")
 
 tabs.fast.FastRebirthData = {
@@ -754,7 +762,6 @@ tabs.fast.FastRebirthWorker = function()
     local lastRebirthCount = startRebirths
     
     while utils.isCurrent() and tabs.fast.FastRebirthData.Running do
-        -- Verificar si llegamos al target
         if tabs.fast.FastRebirthData.TargetRebirths > 0 
             and tabs.fast.FastRebirthData.Rebirths.Value >= tabs.fast.FastRebirthData.TargetRebirths then
             tabs.fast.FastRebirthStatus.Text = "Status: ✅ Target alcanzado!"
@@ -763,10 +770,8 @@ tabs.fast.FastRebirthWorker = function()
             break
         end
         
-        -- 1. Equipar mascotas de repetición para farmear rápido
         pcall(function()
             local uniquePets = utils.playerData.Player.petsFolder.Unique
-            -- Desequipar todas primero
             for _, folder in pairs(utils.playerData.Player.petsFolder:GetChildren()) do
                 if folder:IsA("Folder") and folder.Name ~= "Unique" then
                     for _, pet in pairs(folder:GetChildren()) do
@@ -776,7 +781,6 @@ tabs.fast.FastRebirthWorker = function()
             end
             task.wait(0.1)
             
-            -- Equipar mascotas de repetición (prioridad a las de más reps)
             local repPets = {
                 "Omega Overlord", "Swift Samurai", "Inferno Drake",
                 "Common Boss Pet", "Rare Boss Pet", "Epic Boss Pet",
@@ -796,7 +800,6 @@ tabs.fast.FastRebirthWorker = function()
             end
         end)
         
-        -- 2. Farmear strength hasta el target para el próximo rebirth
         local currentRebirths = tabs.fast.FastRebirthData.Rebirths.Value
         local targetStrength = 5000 + currentRebirths * 2550
         local repsPerBurst = utils.playerData.Player.MembershipType == Enum.MembershipType.Premium and 6 or 12
@@ -806,7 +809,6 @@ tabs.fast.FastRebirthWorker = function()
             .. " / " .. utils.formatNumber(targetStrength)
         tabs.fast.FastRebirthStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
         
-        -- Farmear hasta llegar al target
         while utils.isCurrent() and tabs.fast.FastRebirthData.Running 
             and tabs.fast.FastRebirthData.Strength.Value < targetStrength do
             
@@ -817,14 +819,12 @@ tabs.fast.FastRebirthWorker = function()
             end
             task.wait(0.02)
             
-            -- Actualizar stats
             tabs.fast.FastRebirthStats.Text = "Rebirths: " 
                 .. utils.formatWithCommas(tabs.fast.FastRebirthData.Rebirths.Value) 
                 .. " | Gained: " 
                 .. utils.formatWithCommas(tabs.fast.FastRebirthData.Rebirths.Value - startRebirths)
         end
         
-        -- 3. Hacer el rebirth
         if utils.isCurrent() and tabs.fast.FastRebirthData.Running 
             and tabs.fast.FastRebirthData.Strength.Value >= targetStrength then
             
@@ -851,7 +851,6 @@ tabs.fast.FastRebirthWorker = function()
             end
         end
         
-        -- Calcular velocidad cada segundo
         if tick() - lastCheck >= 1 then
             local currentCount = tabs.fast.FastRebirthData.Rebirths.Value
             local gained = currentCount - lastRebirthCount
@@ -890,19 +889,16 @@ tabs.fast.FastRebirthToggle = tabs.fast:AddSwitch("Fast Rebirth 🔄", function(
 end)
 
 tabs.fast:AddLabel("🔄 Auto farmea + rebirth automático")
--- FAST REBIRTH V2 - 2 Apartados (Ultra Titans + Chaos Overlords) - RÁPIDO
+
+-- FAST REBIRTH V2
 tabs.fast:AddLabel("")
 tabs.fast:AddLabel("Fast Rebirth V2:")
 tabs.fast:AddLabel("")
 
--- =========================================
--- FUNCIONES AUXILIARES RÁPIDAS
--- =========================================
 tabs.fast.desequipAll = function()
     local player = utils.playerData.Player
     local petsFolder = player.petsFolder
     
-    -- Desequipar TODAS las mascotas en TODAS las carpetas
     for _, folder in pairs(petsFolder:GetChildren()) do
         if folder:IsA("Folder") then
             for _, pet in pairs(folder:GetChildren()) do
@@ -913,7 +909,6 @@ tabs.fast.desequipAll = function()
         end
     end
     
-    -- Buscar en el Character también
     if player.Character then
         for _, obj in pairs(player.Character:GetChildren()) do
             if obj:IsA("StringValue") or obj:IsA("ObjectValue") then
@@ -931,11 +926,9 @@ tabs.fast.equipPets = function(petNames)
     local petsFolder = utils.playerData.Player.petsFolder
     local uniquePets = petsFolder.Unique
     
-    -- Desequipar
     tabs.fast.desequipAll()
     task.wait(0.2)
     
-    -- Equipar
     local equipped = 0
     for _, petName in ipairs(petNames) do
         for _, pet in pairs(uniquePets:GetChildren()) do
@@ -953,9 +946,6 @@ tabs.fast.equipPets = function(petNames)
     return equipped
 end
 
--- =========================================
--- APARTADO 1: ULTRA TITANS PACK
--- =========================================
 tabs.fast:AddLabel("Ultra Titans Pack:")
 
 tabs.fast.UltraData = {
@@ -986,7 +976,6 @@ tabs.fast.UltraWorker = function()
             break
         end
 
-        -- PASO 1: EQUIPAR REP (rápido)
         tabs.fast.UltraStatus.Text = "Status: Equipando Rep..."
         tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
         
@@ -997,7 +986,6 @@ tabs.fast.UltraWorker = function()
         
         tabs.fast.UltraStatus.Text = "Status: " .. equippedRep .. " Rep equipados"
 
-        -- PASO 2: FARMEAR
         local currentRebirths = tabs.fast.UltraData.Rebirths.Value
         local targetStrength = 5000 + currentRebirths * 2550
         local repsPerBurst = utils.playerData.Player.MembershipType == Enum.MembershipType.Premium and 6 or 12
@@ -1019,7 +1007,6 @@ tabs.fast.UltraWorker = function()
                 .. utils.formatWithCommas(tabs.fast.UltraData.Rebirths.Value - startRebirths)
         end
 
-        -- PASO 3: EQUIPAR REBIRTH PETS (rápido)
         if utils.isCurrent() and tabs.fast.UltraData.Running
             and tabs.fast.UltraData.Strength.Value >= targetStrength then
 
@@ -1034,7 +1021,6 @@ tabs.fast.UltraWorker = function()
             tabs.fast.UltraStatus.Text = "Status: " .. equippedReb .. " Hydra equipadas"
             task.wait(0.5)
 
-            -- PASO 4: REBIRTH
             tabs.fast.UltraStatus.Text = "Status: Haciendo Rebirth..."
             tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
 
@@ -1087,9 +1073,6 @@ end)
 
 tabs.fast:AddLabel("Omega Overlord > Farm > Titanium Hydra > Rebirth")
 
--- =========================================
--- APARTADO 2: CHAOS OVERLORDS PACK
--- =========================================
 tabs.fast:AddLabel("")
 tabs.fast:AddLabel("Chaos Overlords Pack:")
 
@@ -1121,7 +1104,6 @@ tabs.fast.ChaosWorker = function()
             break
         end
 
-        -- PASO 1: EQUIPAR REP (rápido)
         tabs.fast.ChaosStatus.Text = "Status: Equipando Rep..."
         tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
         
@@ -1132,7 +1114,6 @@ tabs.fast.ChaosWorker = function()
         
         tabs.fast.ChaosStatus.Text = "Status: " .. equippedRep .. " Rep equipados"
 
-        -- PASO 2: FARMEAR
         local currentRebirths = tabs.fast.ChaosData.Rebirths.Value
         local targetStrength = 5000 + currentRebirths * 2550
         local repsPerBurst = utils.playerData.Player.MembershipType == Enum.MembershipType.Premium and 6 or 12
@@ -1154,7 +1135,6 @@ tabs.fast.ChaosWorker = function()
                 .. utils.formatWithCommas(tabs.fast.ChaosData.Rebirths.Value - startRebirths)
         end
 
-        -- PASO 3: EQUIPAR REBIRTH PETS (rápido)
         if utils.isCurrent() and tabs.fast.ChaosData.Running
             and tabs.fast.ChaosData.Strength.Value >= targetStrength then
 
@@ -1169,7 +1149,6 @@ tabs.fast.ChaosWorker = function()
             tabs.fast.ChaosStatus.Text = "Status: " .. equippedReb .. " Tribal equipados"
             task.wait(0.5)
 
-            -- PASO 4: REBIRTH
             tabs.fast.ChaosStatus.Text = "Status: Haciendo Rebirth..."
             tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
 
@@ -1221,12 +1200,577 @@ tabs.fast.ChaosToggle = tabs.fast:AddSwitch("Fast Rebirth Chaos Overlords", func
 end)
 
 tabs.fast:AddLabel("Swift Samurai > Farm > Tribal Overlord > Rebirth")
+-- ============================================
+-- TAB BOSS
+-- ============================================
+
+tabs.boss:AddLabel("Boss Farming:")
+tabs.boss.StatusLabel = tabs.boss:AddLabel("Status: Waiting for Boss")
+tabs.boss.BossLabel = tabs.boss:AddLabel("Boss: None")
+tabs.boss.HealthLabel = tabs.boss:AddLabel("Health: 0 / 0")
+tabs.boss.NextBossLabel = tabs.boss:AddLabel("Next Boss: N/A")
+
+tabs.boss.Data = {
+	Running = false,
+	Generation = 0,
+	ContinueTraining = true,
+	Phase = "Waiting",
+	TrainingSnapshot = nil,
+	PunchInterval = 0.3,
+	LastPunch = 0,
+	AttackSequence = nil,
+	EvadeUntil = 0,
+	EvadeDistance = 230,
+	PunchBehindDistance = 45,
+	StompHealthThreshold = 0.35,
+	DodgeStomps = false,
+	BossConfig = nil,
+	Bosses = {},
+	BossOrder = {},
+	BossByDisplayName = {},
+	SelectedBosses = {}
+}
+
+tabs.boss.SelectedBossesLabel = tabs.boss:AddLabel("Targeted Bosses: Detecting...")
+tabs.boss.BossDropdown = tabs.boss:AddDropdown("Target specific Bosses", function(displayName)
+	tabs.boss.runtime.bossModelName = tabs.boss.Data.BossByDisplayName[displayName]
+	if tabs.boss.runtime.bossModelName then
+		tabs.boss.Data.SelectedBosses[tabs.boss.runtime.bossModelName] = not tabs.boss.Data.SelectedBosses[tabs.boss.runtime.bossModelName]
+		tabs.boss.updateSelectedBossesLabel()
+	end
+end)
+
+tabs.boss.updateSelectedBossesLabel = function(selectedNames)
+	selectedNames = {}
+	for _, modelName in ipairs(tabs.boss.Data.BossOrder) do
+		if tabs.boss.Data.SelectedBosses[modelName] then
+			table.insert(selectedNames, (string.gsub(tabs.boss.Data.Bosses[modelName], "%s+[Bb][Oo][Ss][Ss]$", "")))
+		end
+	end
+	tabs.boss.SelectedBossesLabel.Text = "Targeted Bosses: " .. (#selectedNames > 0 and table.concat(selectedNames, ", ") or "None")
+end
+
+tabs.boss.addBossChoice = function(modelName, displayName)
+	modelName = tostring(modelName or "")
+	displayName = tostring(displayName or modelName)
+	if modelName == "" or tabs.boss.Data.Bosses[modelName] then return end
+	tabs.boss.Data.Bosses[modelName] = displayName
+	tabs.boss.Data.BossByDisplayName[displayName] = modelName
+	tabs.boss.Data.SelectedBosses[modelName] = true
+	table.insert(tabs.boss.Data.BossOrder, modelName)
+	tabs.boss.BossDropdown:Add(displayName)
+	tabs.boss.updateSelectedBossesLabel()
+end
+
+tabs.boss.runtime.configSuccess, tabs.boss.Data.BossConfig = pcall(function()
+	return require(services.ReplicatedStorage:WaitForChild("shared"):WaitForChild("config"):WaitForChild("BossEventConfig"))
+end)
+if tabs.boss.runtime.configSuccess and tabs.boss.Data.BossConfig and tabs.boss.Data.BossConfig.RARITIES then
+	for _, rarity in ipairs(tabs.boss.Data.BossConfig.RARITIES) do
+		tabs.boss.addBossChoice(rarity.BossModel, rarity.DisplayName or rarity.Name or rarity.BossModel)
+	end
+else
+	tabs.boss.SelectedBossesLabel.Text = "Farmed Bosses: Waiting for detection"
+end
+
+tabs.boss.shouldFarmBoss = function(model)
+	if not tabs.boss.Data.Bosses[model.Name] then
+		tabs.boss.addBossChoice(model.Name, services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+	end
+	return tabs.boss.Data.SelectedBosses[model.Name] == true
+end
+
+tabs.boss.findActiveBoss = function(model, stats, health, maxHealth, hitbox)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventBoss")) do
+		if candidate:IsA("Model") and candidate:IsDescendantOf(services.Workspace) then
+			model = candidate
+			break
+		end
+	end
+
+	if not model then
+		tabs.boss.runtime.events = services.Workspace:FindFirstChild("Events")
+		tabs.boss.runtime.bossFolder = tabs.boss.runtime.events and (tabs.boss.runtime.events:FindFirstChild("BossEvent") or tabs.boss.runtime.events:FindFirstChild("BossArena"))
+		if tabs.boss.runtime.bossFolder then
+			for _, candidate in ipairs(tabs.boss.runtime.bossFolder:GetDescendants()) do
+				if candidate:IsA("Model") and (candidate:FindFirstChild("BossDamageHitbox") or candidate:HasTag("BossEventBoss")) then
+					model = candidate
+					break
+				end
+			end
+		end
+	end
+
+	if not model then return end
+	stats = model:FindFirstChild("stats")
+	health = stats and stats:FindFirstChild("Health")
+	maxHealth = stats and stats:FindFirstChild("MaxHealth")
+	hitbox = model:FindFirstChild("BossDamageHitbox", true)
+	if not hitbox or not hitbox:IsA("BasePart") then return end
+	tabs.boss.runtime.currentHealth = health and health.Value or services.Workspace:GetAttribute("BossHealth")
+	if typeof(tabs.boss.runtime.currentHealth) == "number" and tabs.boss.runtime.currentHealth <= 0 then return end
+	return model, health, maxHealth, hitbox
+end
+
+tabs.boss.getBossHealth = function(health)
+	return health and health.Value or services.Workspace:GetAttribute("BossHealth") or 0
+end
+
+tabs.boss.getBossMaxHealth = function(maxHealth)
+	return maxHealth and maxHealth.Value or services.Workspace:GetAttribute("BossMaxHealth") or 0
+end
+
+tabs.boss.formatCountdown = function(seconds, hours, minutes)
+	seconds = math.max(0, math.floor(seconds or 0))
+	hours = math.floor(seconds / 3600)
+	minutes = math.floor(seconds % 3600 / 60)
+	seconds = seconds % 60
+	return string.format("%dh %dmin %ds", hours, minutes, seconds)
+end
+
+tabs.boss.leaveExerciseMachine = function(character, humanoid, root)
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or humanoid.Health <= 0 then return end
+
+	pcall(function()
+		services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+		humanoid.Sit = false
+		humanoid.Jump = true
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		if root then root.AssemblyLinearVelocity = Vector3.new(0, math.max(root.AssemblyLinearVelocity.Y, 50), 0) end
+	end)
+	pcall(function() services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
+	task.wait(0.2)
+end
+
+tabs.boss.pauseTraining = function()
+	if tabs.boss.Data.TrainingSnapshot then return end
+	tabs.boss.Data.TrainingSnapshot = {
+		Tool = tabs.farming and tabs.farming.ExerciseData and tabs.farming.ExerciseData.AutoFarm or false,
+		AutoRep = tabs.farming and tabs.farming.AutoRepRunning or false,
+	}
+	if tabs.farming then
+		if tabs.farming.ToolExerciseSwitch and tabs.farming.ExerciseData and tabs.farming.ExerciseData.AutoFarm then tabs.farming.ToolExerciseSwitch:Set(false) end
+		if tabs.farming.AutoRepSwitch and tabs.farming.AutoRepRunning then tabs.farming.AutoRepSwitch:Set(false) end
+	end
+	if tabs.boss.Data.TrainingSnapshot.Tool then tabs.boss.leaveExerciseMachine() end
+end
+
+tabs.boss.resumeTraining = function(snapshot)
+	snapshot = tabs.boss.Data.TrainingSnapshot
+	if not snapshot then return end
+	tabs.boss.Data.TrainingSnapshot = nil
+end
+
+tabs.boss.getBossHeadPosition = function(model, hitbox, head)
+	head = model:FindFirstChild("Head", true) or model:FindFirstChild("head", true)
+	if head and head:IsA("BasePart") then return head.Position end
+	if head and head:IsA("Bone") then return head.WorldPosition end
+	return hitbox.Position + Vector3.new(0, hitbox.Size.Y * 0.35, 0)
+end
+
+tabs.boss.getAliveCharacter = function(generation, timeout, startedAt, character, root, humanoid)
+	startedAt = os.clock()
+	repeat
+		character = utils.playerData.Player.Character
+		root = character and character:FindFirstChild("HumanoidRootPart")
+		humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 then
+			utils.playerData.Character = character
+			utils.playerData.Humanoid = humanoid
+			return character, root, humanoid
+		end
+		tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+		task.wait(0.1)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or (timeout and os.clock() - startedAt >= timeout)
+end
+
+tabs.boss.evadeAttack = function(model, hitbox, root, humanoid, sequence, attackKind, attackCFrame, impactTime, direction, safePosition, center)
+	sequence = model:GetAttribute("BossAttackSequence")
+	attackKind = model:GetAttribute("BossAttackKind")
+	attackCFrame = model:GetAttribute("BossAttackCFrame")
+	impactTime = model:GetAttribute("BossAttackImpactTime")
+
+	if typeof(sequence) == "number" and sequence ~= tabs.boss.Data.AttackSequence then
+		tabs.boss.Data.AttackSequence = sequence
+		if typeof(attackKind) == "string" and typeof(attackCFrame) == "CFrame" and typeof(impactTime) == "number" then
+			tabs.boss.Data.EvadeUntil = impactTime + 0.6
+		end
+	end
+
+	if typeof(attackCFrame) ~= "CFrame" or services.Workspace:GetServerTimeNow() > tabs.boss.Data.EvadeUntil then
+		return
+	end
+
+	attackKind = string.lower(tostring(attackKind or ""))
+	if string.find(attackKind, "punch", 1, true) then
+		center = tabs.boss.getBossHeadPosition(model, hitbox)
+		direction = Vector3.new(attackCFrame.LookVector.X, 0, attackCFrame.LookVector.Z)
+		if direction.Magnitude < 1 then direction = Vector3.new(hitbox.CFrame.LookVector.X, 0, hitbox.CFrame.LookVector.Z) end
+		if direction.Magnitude < 1 then direction = Vector3.new(0, 0, 1) end
+		safePosition = center - direction.Unit * tabs.boss.Data.PunchBehindDistance
+		root.CFrame = CFrame.lookAt(safePosition, center)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		tabs.boss.StatusLabel.Text = "Status: Dodging Punch"
+		return "Punch"
+	end
+
+	if not string.find(attackKind, "stomp", 1, true) then return end
+	if humanoid.Health / math.max(humanoid.MaxHealth, 1) <= tabs.boss.Data.StompHealthThreshold then
+		tabs.boss.Data.DodgeStomps = true
+	end
+	if not tabs.boss.Data.DodgeStomps then return end
+
+	direction = Vector3.new(root.Position.X - attackCFrame.Position.X, 0, root.Position.Z - attackCFrame.Position.Z)
+	if direction.Magnitude < 1 then
+		direction = Vector3.new(-attackCFrame.LookVector.X, 0, -attackCFrame.LookVector.Z)
+	end
+	if direction.Magnitude < 1 then direction = Vector3.new(1, 0, 0) end
+	direction = direction.Unit
+	safePosition = attackCFrame.Position + direction * tabs.boss.Data.EvadeDistance + Vector3.new(0, 18, 0)
+	root.CFrame = CFrame.lookAt(safePosition, attackCFrame.Position)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	tabs.boss.StatusLabel.Text = "Status: Dodging Stomp"
+	return "Stomp"
+end
+
+tabs.boss.attack = function(model, health, maxHealth, hitbox, character, root, humanoid, punch, leftHand, rightHand, center, position, evadeMode)
+	character = utils.playerData.Player.Character
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid or humanoid.Health <= 0 then return end
+	evadeMode = tabs.boss.evadeAttack(model, hitbox, root, humanoid)
+	if evadeMode == "Stomp" then return end
+	punch = character:FindFirstChild("Punch") or utils.playerData.Backpack:FindFirstChild("Punch")
+	if punch and punch.Parent ~= character then humanoid:EquipTool(punch) end
+	leftHand = character:FindFirstChild("LeftHand")
+	rightHand = character:FindFirstChild("RightHand")
+	center = tabs.boss.getBossHeadPosition(model, hitbox)
+	if evadeMode ~= "Punch" then
+		position = center
+		root.CFrame = CFrame.lookAt(position, position + hitbox.CFrame.LookVector)
+	end
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	pcall(function()
+		if leftHand then
+			firetouchinterest(hitbox, leftHand, 0)
+			firetouchinterest(hitbox, leftHand, 1)
+		end
+		if rightHand then
+			firetouchinterest(hitbox, rightHand, 0)
+			firetouchinterest(hitbox, rightHand, 1)
+		end
+	end)
+
+	if os.clock() - tabs.boss.Data.LastPunch >= tabs.boss.Data.PunchInterval then
+		tabs.boss.Data.LastPunch = os.clock()
+		pcall(function()
+			utils.remotes.MuscleEvent:FireServer("punch", "leftHand")
+			utils.remotes.MuscleEvent:FireServer("punch", "rightHand")
+			if punch then punch:Activate() end
+		end)
+	end
+
+	tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+	tabs.boss.runtime.health = tabs.boss.getBossHealth(health)
+	tabs.boss.runtime.maxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+	tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(tabs.boss.runtime.health) .. " / " .. utils.formatNumber(tabs.boss.runtime.maxHealth)
+end
+
+tabs.boss.findChest = function(chest, prompt, part)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventChest")) do
+		if candidate:IsDescendantOf(services.Workspace) then chest = candidate break end
+	end
+	if not chest then chest = services.Workspace:FindFirstChild("BossChest", true) end
+	if not chest then
+		for _, candidate in ipairs(services.Workspace:GetDescendants()) do
+			if candidate:IsA("ProximityPrompt") and candidate.Name == "bossChestPrompt" then
+				chest = candidate.Parent
+				break
+			end
+		end
+	end
+	if not chest then return end
+	prompt = chest:FindFirstChild("bossChestPrompt", true)
+	part = prompt and prompt.Parent or (chest:IsA("Model") and (chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart", true))) or chest
+	if part and part:IsA("BasePart") then return chest, prompt, part end
+end
+
+tabs.boss.collectChest = function(generation, startedAt, chest, prompt, part, character, root)
+	tabs.boss.StatusLabel.Text = "Status: Waiting for Chest"
+	startedAt = os.clock()
+	repeat
+		chest, prompt, part = tabs.boss.findChest()
+		if chest and chest:GetAttribute("BossChestEmerging") ~= true then break end
+		task.wait(0.1)
+	until not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation or os.clock() - startedAt >= 12
+	if not chest or not part then return end
+
+	tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+	startedAt = os.clock()
+	repeat
+		character, root = tabs.boss.getAliveCharacter(generation, 2)
+		if character and root and chest.Parent and part.Parent then
+			tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+			pcall(function()
+				root.CFrame = CFrame.lookAt(part.Position + Vector3.new(0, 3, 4), part.Position)
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
+			task.wait(0.15)
+			if prompt and prompt.Parent and fireproximityprompt then
+				pcall(function() fireproximityprompt(prompt) end)
+			else
+				pcall(function()
+					services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+					task.wait(0.1)
+					services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+				end)
+			end
+		end
+		task.wait(0.25)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or utils.playerData.Player:GetAttribute("BossChestPending") == false
+		or not chest.Parent
+		or os.clock() - startedAt >= 12
+end
+
+tabs.boss.ContinueSwitch = tabs.boss:AddSwitch("Continue Farming after Boss Kill", function(state)
+	tabs.boss.Data.ContinueTraining = state
+	if state and tabs.boss.Data.Phase == "Waiting" then tabs.boss.resumeTraining() end
+end)
+tabs.boss.ContinueSwitch:Set(false)
+
+task.spawn(function(model, health, maxHealth, hitbox, currentHealth, currentMaxHealth, nextTime)
+	while utils.isCurrent() and true do
+		model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+		if model then
+			currentHealth = tabs.boss.getBossHealth(health)
+			currentMaxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+			tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+			tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(currentHealth) .. " / " .. utils.formatNumber(currentMaxHealth)
+			tabs.boss.NextBossLabel.Text = "Next Boss: Current boss active"
+		else
+			tabs.boss.BossLabel.Text = "Boss: None"
+			tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+			nextTime = services.Workspace:GetAttribute("BossSpawnNextTime")
+			tabs.boss.NextBossLabel.Text = typeof(nextTime) == "number"
+				and "Next Boss: " .. tabs.boss.formatCountdown(nextTime - services.Workspace:GetServerTimeNow())
+				or "Next Boss: N/A"
+		end
+		task.wait(0.25)
+	end
+end)
+
+tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
+	tabs.boss.Data.Running = state
+	tabs.boss.Data.Generation += 1
+	tabs.boss.runtime.generation = tabs.boss.Data.Generation
+	if not state then
+		tabs.boss.Data.Phase = "Waiting"
+		tabs.boss.StatusLabel.Text = "Status: Disabled"
+		tabs.boss.resumeTraining()
+		return
+	end
+
+	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox, selected)
+		while utils.isCurrent() and tabs.boss.Data.Running and tabs.boss.Data.Generation == generation do
+			pcall(function()
+				model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+				selected = model and tabs.boss.shouldFarmBoss(model)
+				if model and not selected then
+					if wasFighting then
+						wasFighting = false
+						tabs.boss.resumeTraining()
+					end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Skipping " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+				elseif model then
+					if not wasFighting then
+						wasFighting = true
+						tabs.boss.Data.Phase = "Fighting"
+						tabs.boss.Data.AttackSequence = nil
+						tabs.boss.Data.EvadeUntil = 0
+						tabs.boss.Data.DodgeStomps = false
+						tabs.boss.pauseTraining()
+					end
+					if utils.playerData.Player.Character
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid")
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+						tabs.boss.StatusLabel.Text = "Status: Fighting"
+						tabs.boss.attack(model, health, maxHealth, hitbox)
+					else
+						tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+					end
+				elseif wasFighting then
+					wasFighting = false
+					tabs.boss.Data.Phase = "Collecting"
+					pcall(tabs.boss.collectChest, generation)
+					tabs.boss.BossLabel.Text = "Boss: None"
+					tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+					if tabs.boss.Data.ContinueTraining then tabs.boss.resumeTraining() end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				else
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				end
+			end)
+			task.wait(model and selected and 0.03 or 0.25)
+		end
+	end, tabs.boss.runtime.generation)
+end)
+
+-- ============================================
+-- TAB ESTIMATES
+-- ============================================
+
+tabs.estimates:AddLabel("📊 Gain Estimates")
+tabs.estimates:AddLabel("Mide tu ritmo real durante 60 segundos")
+
+tabs.estimates.Data = {
+	Active = false,
+	StartTime = 0,
+	Calibrated = false,
+	CalibrationTime = 60,
+	LastUpdate = 0,
+	StartStrength = 0,
+	StartRebirths = 0,
+	StrengthRate = 0,
+	RebirthsRate = 0,
+	WorkerActive = false,
+	Generation = 0
+}
+
+tabs.estimates.StatusLabel = tabs.estimates:AddLabel("Status: Inactive")
+tabs.estimates.StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+
+tabs.estimates.CalibLabel = tabs.estimates:AddLabel("Calibración: --")
+tabs.estimates.CalibLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+
+tabs.estimates:AddLabel("— Strength —")
+
+tabs.estimates.StrengthLabels = {
+	Hour = tabs.estimates:AddLabel("1 Hora: 0"),
+	Day = tabs.estimates:AddLabel("1 Día: 0"),
+	Week = tabs.estimates:AddLabel("1 Semana: 0"),
+	Month = tabs.estimates:AddLabel("1 Mes: 0"),
+	Rate = tabs.estimates:AddLabel("Ritmo actual: 0 /s")
+}
+
+tabs.estimates:AddLabel("— Rebirths —")
+
+tabs.estimates.RebirthsLabels = {
+	Hour = tabs.estimates:AddLabel("1 Hora: 0"),
+	Day = tabs.estimates:AddLabel("1 Día: 0"),
+	Week = tabs.estimates:AddLabel("1 Semana: 0"),
+	Month = tabs.estimates:AddLabel("1 Mes: 0"),
+	Rate = tabs.estimates:AddLabel("Ritmo actual: 0 /s")
+}
+
+tabs.estimates.Worker = function()
+	tabs.estimates.Data.WorkerActive = true
+
+	while utils.isCurrent() and tabs.estimates.Data.Active do
+		local elapsed = tick() - tabs.estimates.Data.StartTime
+
+		if not tabs.estimates.Data.Calibrated then
+			local remaining = tabs.estimates.Data.CalibrationTime - elapsed
+			if remaining <= 0 then
+				tabs.estimates.Data.Calibrated = true
+				tabs.estimates.StatusLabel.Text = "Status: ✅ Calibrado"
+				tabs.estimates.StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
+				tabs.estimates.CalibLabel.Text = "Calibración completada"
+				tabs.estimates.CalibLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
+			else
+				tabs.estimates.CalibLabel.Text = string.format("Calibrando... %ds restantes", math.floor(remaining))
+			end
+		end
+
+		-- Actualizar tasas
+		local currentStrength = strengthStat.Value
+		local currentRebirths = utils.playerData.Player.leaderstats.Rebirths.Value
+
+		local strengthGained = currentStrength - tabs.estimates.Data.StartStrength
+		local rebirthsGained = currentRebirths - tabs.estimates.Data.StartRebirths
+
+		if elapsed > 0 then
+			tabs.estimates.Data.StrengthRate = strengthGained / elapsed
+			tabs.estimates.Data.RebirthsRate = rebirthsGained / elapsed
+		end
+
+		-- Mostrar
+		local sRate = tabs.estimates.Data.StrengthRate
+		local rRate = tabs.estimates.Data.RebirthsRate
+
+		tabs.estimates.StrengthLabels.Rate.Text = "Ritmo actual: " .. utils.formatNumber(sRate) .. " /s"
+		tabs.estimates.StrengthLabels.Hour.Text = "1 Hora: " .. utils.formatNumber(sRate * 3600)
+		tabs.estimates.StrengthLabels.Day.Text = "1 Día: " .. utils.formatNumber(sRate * 86400)
+		tabs.estimates.StrengthLabels.Week.Text = "1 Semana: " .. utils.formatNumber(sRate * 604800)
+		tabs.estimates.StrengthLabels.Month.Text = "1 Mes: " .. utils.formatNumber(sRate * 2592000)
+
+		tabs.estimates.RebirthsLabels.Rate.Text = "Ritmo actual: " .. string.format("%.2f", rRate) .. " /s"
+		tabs.estimates.RebirthsLabels.Hour.Text = "1 Hora: " .. utils.formatNumber(rRate * 3600)
+		tabs.estimates.RebirthsLabels.Day.Text = "1 Día: " .. utils.formatNumber(rRate * 86400)
+		tabs.estimates.RebirthsLabels.Week.Text = "1 Semana: " .. utils.formatNumber(rRate * 604800)
+		tabs.estimates.RebirthsLabels.Month.Text = "1 Mes: " .. utils.formatNumber(rRate * 2592000)
+
+		task.wait(1)
+	end
+
+	tabs.estimates.Data.WorkerActive = false
+end
+
+tabs.estimates.Toggle = tabs.estimates:AddSwitch("Activar Estimates", function(state)
+	tabs.estimates.Data.Active = state
+
+	if state then
+		tabs.estimates.Data.StartTime = tick()
+		tabs.estimates.Data.Calibrated = false
+		tabs.estimates.Data.StartStrength = strengthStat.Value
+		tabs.estimates.Data.StartRebirths = utils.playerData.Player.leaderstats.Rebirths.Value
+
+		tabs.estimates.StatusLabel.Text = "Status: 🟡 Calibrando..."
+		tabs.estimates.StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+		tabs.estimates.CalibLabel.Text = "Calibrando... 60s restantes"
+		tabs.estimates.CalibLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+
+		if not tabs.estimates.Data.WorkerActive then
+			task.spawn(tabs.estimates.Worker)
+		end
+	else
+		tabs.estimates.StatusLabel.Text = "Status: Inactive"
+		tabs.estimates.StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+		tabs.estimates.CalibLabel.Text = "Calibración: --"
+		tabs.estimates.CalibLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+	end
+end)
+
+tabs.estimates:AddButton("Resetear", function()
+	tabs.estimates.Data.StartTime = tick()
+	tabs.estimates.Data.Calibrated = false
+	tabs.estimates.Data.StartStrength = strengthStat.Value
+	tabs.estimates.Data.StartRebirths = utils.playerData.Player.leaderstats.Rebirths.Value
+	tabs.estimates.CalibLabel.Text = "Calibrando... 60s restantes"
+	tabs.estimates.CalibLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+	tabs.estimates.StatusLabel.Text = "Status: 🟡 Recalibrando..."
+	tabs.estimates.StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+end)
+
+tabs.estimates:AddLabel("")
+tabs.estimates:AddLabel("Nota: Los primeros 60s son de calibración")
+tabs.estimates:AddLabel("Después verás las proyecciones")
 
 -- ============================================
 -- TAB INFO
 -- ============================================
 
-tabs.info:Show()
 tabs.info:AddLabel("Made by Honen")
 tabs.info:AddLabel("Any issues? Join our Discord")
 tabs.info:AddLabel("Official Discord: discord.gg/bVDtwKF92")
