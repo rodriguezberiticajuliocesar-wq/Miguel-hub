@@ -1642,7 +1642,7 @@ tabs.quests.QuestDropdown = tabs.quests:AddDropdown("Selecciona Misión", functi
 	tabs.quests.Data.SelectedQuest = selection
 	tabs.quests.QuestLabel.Text = "Misión: " .. selection
 
-	local questFolder = game:GetService("ReplicatedStorage").shared.catalogs.Quests.Story:FindFirstChild(selection)
+	local questFolder = game:GetService("ReplicatedStorage").shared.catalogs.Quests["Story Quests"]:FindFirstChild(selection)
 	if questFolder and questFolder:FindFirstChild("Quests") then
 		local levels = {}
 		for _, lvl in ipairs(questFolder.Quests:GetChildren()) do
@@ -1665,7 +1665,7 @@ end)
 -- Cargar misiones
 task.spawn(function()
 	task.wait(1)
-	local storyFolder = game:GetService("ReplicatedStorage").shared.catalogs.Quests:FindFirstChild("Story")
+	local storyFolder = game:GetService("ReplicatedStorage").shared.catalogs.Quests:FindFirstChild("Story Quests")
 	if storyFolder then
 		for _, quest in ipairs(storyFolder:GetChildren()) do
 			if quest:FindFirstChild("Quests") then
@@ -1680,7 +1680,7 @@ end)
 
 -- Función para leer requisitos de una misión
 tabs.quests.getRequirements = function(questName, level)
-	local questFolder = game:GetService("ReplicatedStorage").shared.catalogs.Quests.Story:FindFirstChild(questName)
+	local questFolder = game:GetService("ReplicatedStorage").shared.catalogs.Quests["Story Quests"]:FindFirstChild(questName)
 	if not questFolder then return nil end
 	local levelFolder = questFolder:FindFirstChild("Quests") and questFolder.Quests:FindFirstChild(tostring(level))
 	if not levelFolder then return nil end
